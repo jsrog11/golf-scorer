@@ -189,6 +189,7 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield}
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="golf-shared.js"></script>
 </head>
 <body>
 
@@ -468,12 +469,6 @@ function listenForSessionEnd(){
   });
 }
 
-function defaultParsAndSI(n){
-  var p=[4,4,3,4,5,3,4,5,4,4,4,3,5,4,4,3,5,4];
-  var s=[1,7,15,11,3,17,5,9,13,2,8,16,12,4,18,6,10,14];
-  return {pars:p.slice(0,n), si:s.slice(0,n)};
-}
-
 function showApp(){
   // Always ensure pars and SI are set before rendering
   if(!P.pars.length || P.pars.length < P.numHoles){
@@ -568,13 +563,6 @@ function applySessionData(data){
 // ═══════════════════════════════════════════
 //  STROKE CALC
 // ═══════════════════════════════════════════
-function strokesOn(hdcp, hole){
-  var si = (P.si && P.si[hole]) ? P.si[hole] : 0;
-  if(!si) return 0;
-  var n = P.numHoles || 18;
-  return Math.floor(hdcp/n) + ((hdcp%n)>=si?1:0);
-}
-
 function getScoreLabel(gross, par){
   if(gross===undefined||gross===null) return '';
   const d = gross - par;
@@ -642,7 +630,7 @@ function renderCurrentHole(){
     return;
   }
   P.players.forEach(function(p){
-    const strokes = strokesOn(p.hdcp, h);
+    const strokes = strokesOn(p.hdcp, h, P.si, P.numHoles);
     const gross = P.scores[p.id] && P.scores[p.id][h]!==undefined ? P.scores[p.id][h] : null;
     const label = gross!==null ? getScoreLabel(gross, par) : '';
     const netScore = gross!==null ? gross - strokes : null;
@@ -709,7 +697,7 @@ function renderMiniScorecard(){
       const g = P.scores[p.id] && P.scores[p.id][h]!==undefined ? P.scores[p.id][h] : null;
       if(g===null) return '<td style="color:#333">·</td>';
       const par=P.pars[h]||4;
-      const str=strokesOn(p.hdcp,h);
+      const str=strokesOn(p.hdcp,h,P.si,P.numHoles);
       const net=g-str;
       tg+=g; tn+=net; played++;
       const label=getScoreLabel(g,par);
@@ -812,7 +800,7 @@ function buildLeaderboardFromLocal(){
     const cPar = P.pars.reduce(function(a,b){return a+(b||4);},0);
     const tn = arr.reduce(function(acc,e){
       const h=+e[0], g=e[1];
-      const str=strokesOn(lp.hdcp,h);
+      const str=strokesOn(lp.hdcp,h,P.si,P.numHoles);
       return acc+(g-str);
     },0);
     lp.holesPlayed = arr.length;
