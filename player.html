@@ -273,8 +273,6 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield}
 const P = {
   groupNum: null,
   sessionId: '',
-  sheetId: '',
-  apiKey: '',
   fbUrl: '',         // Firebase database URL
   fbSession: '',     // Firebase session ID
   players: [],
@@ -320,8 +318,6 @@ function init(){
   const params = new URLSearchParams(window.location.search);
   P.groupNum   = params.get('group');
   P.sessionId  = params.get('session')||'';
-  P.sheetId    = params.get('sheet') || '19zm2vF0458rO-MpPHfs0tT4D6Cg0Cn9eMREK4bnT3n4';
-  P.apiKey     = params.get('key') || '';
   P.fbUrl      = params.get('fburl') || 'https://golf-scorer-51fff-default-rtdb.firebaseio.com';
   P.fbSession  = params.get('fbsession') || P.sessionId;
 
@@ -351,7 +347,7 @@ function init(){
   // Try to load from localStorage (offline cache)
   loadFromCache();
 
-  // Then try to fetch from Sheet
+  // Then connect to the live Firebase session
   fetchSessionData();
 }
 
@@ -385,7 +381,8 @@ function saveToCache(){
 }
 
 // ═══════════════════════════════════════════
-//  SHEET FETCH — STUBBED, READY FOR API KEY
+//  SESSION DATA FETCH — FIREBASE IS THE SOLE
+//  LIVE-SCORING TRANSPORT
 // ═══════════════════════════════════════════
 function fetchSessionData(){
   // Firebase is primary — try it first
@@ -471,97 +468,6 @@ function listenForSessionEnd(){
   });
 }
 
-function pullSessionFromSheet(){
-  setLoading('Loading scores from sheet...');
-  // Escape single quotes in tab name for Sheets API range notation
-  var safeTab = P.tabName.replace(/'/g, "''");
-  var range = encodeURIComponent("'" + safeTab + "'!A1:ZZ200");
-  var url = 'https://sheets.googleapis.com/v4/spreadsheets/' + P.sheetId +
-    '/values/' + range + '?key=' + P.apiKey;
-  fetch(url)
-  .then(function(r){return r.json();})
-  .then(function(data){
-    if(data.error){
-      // Tab doesn't exist yet — fall through to URL data which already has pars/SI
-      console.warn('Sheet tab not ready:', data.error.message);
-      if(!P.players.length) loadDemoData();
-      showApp();
-      return;
-    }
-    var rows = data.values||[];
-    if(rows.length<2){
-      if(!P.players.length) loadDemoData();
-      showApp();
-      return;
-    }
-    var headers = rows[0];
-    var pidIdx  = headers.indexOf('PlayerID');
-    var nameIdx = headers.indexOf('PlayerName');
-    var fltIdx  = headers.indexOf('Flight');
-    var grpIdx  = headers.indexOf('Group');
-    var hcpIdx  = headers.indexOf('HCP');
-    var h1Idx   = headers.indexOf('H1');
-    if(pidIdx<0 || h1Idx<0){
-      if(!P.players.length) loadDemoData();
-      showApp();
-      return;
-    }
-    // Count holes from header
-    var hCount=0;
-    while(h1Idx+hCount<headers.length && /^H\d+$/.test(headers[h1Idx+hCount])) hCount++;
-    P.numHoles = hCount||18;
-    // Build players and scores
-    var allPlayers = [];
-    var myGroup = parseInt(P.groupNum)||1;
-    rows.slice(1).forEach(function(row){
-      var grp = parseInt(row[grpIdx])||0;
-      var pid = row[pidIdx]||'';
-      if(!pid) return;
-      var p = {
-        id:pid,
-        name:row[nameIdx]||'Player',
-        flight:row[fltIdx]||'A',
-        group:grp,
-        hdcp:parseInt(row[hcpIdx])||0
-      };
-      allPlayers.push(p);
-      // Init scores for everyone
-      if(!P.scores[pid]) P.scores[pid]={};
-      if(grp===myGroup){
-        for(var h=0;h<P.numHoles;h++){
-          var val=row[h1Idx+h];
-          if(val!==undefined&&val!==''){
-            var s=parseInt(val);
-            if(!isNaN(s)&&s>0) P.scores[pid][h]=s;
-          }
-        }
-      }
-    });
-    // Players in my group
-    P.players = allPlayers.filter(function(p){return p.group===myGroup;});
-    if(!P.players.length){
-      // fallback — show all players if group assignment not found
-      P.players = allPlayers.slice(0,4);
-    }
-    // All players for leaderboard
-    P.leaderboard = allPlayers.map(function(p){
-      var arr=Object.entries(P.scores[p.id]||{});
-      return Object.assign({},p,{scores:P.scores[p.id]||{},holesPlayed:arr.length,rel:9999});
-    });
-    // Default pars and SI if not set
-    if(!P.pars.length || P.pars.every(function(v){return !v;})){
-      var d=defaultParsAndSI(P.numHoles);
-      P.pars=d.pars; P.si=d.si;
-    }
-    saveToCache();
-    showApp();
-  }).catch(function(e){
-    console.error('pullSessionFromSheet error:',e);
-    if(!P.players.length) loadDemoData();
-    showApp();
-  });
-}
-
 function defaultParsAndSI(n){
   var p=[4,4,3,4,5,3,4,5,4,4,4,3,5,4,4,3,5,4];
   var s=[1,7,15,11,3,17,5,9,13,2,8,16,12,4,18,6,10,14];
@@ -619,53 +525,9 @@ function fetchLeaderboard(){
     }).catch(function(){ buildLeaderboardFromLocal(); renderLeaderboard(); });
     return;
   }
-  if(!P.sheetId||!P.tabName){ buildLeaderboardFromLocal(); return; }
-  var range = encodeURIComponent("'"+P.tabName+"'!A1:ZZ200");
-  fetch('https://sheets.googleapis.com/v4/spreadsheets/' + P.sheetId +
-    '/values/' + range + '?key=' + P.apiKey)
-  .then(function(r){return r.json();})
-  .then(function(data){
-    if(data.error){ buildLeaderboardFromLocal(); return; }
-    var rows=data.values||[];
-    if(rows.length<2){ buildLeaderboardFromLocal(); return; }
-    var headers=rows[0];
-    var pidIdx=headers.indexOf('PlayerID');
-    var nameIdx=headers.indexOf('PlayerName');
-    var fltIdx=headers.indexOf('Flight');
-    var hcpIdx=headers.indexOf('HCP');
-    var h1Idx=headers.indexOf('H1');
-    if(pidIdx<0||h1Idx<0){ buildLeaderboardFromLocal(); return; }
-    var hCount=0;
-    while(h1Idx+hCount<headers.length&&headers[h1Idx+hCount].match(/^H\d+$/)) hCount++;
-    var cPar=P.pars.reduce(function(a,b){return a+(b||4);},0);
-    P.leaderboard = rows.slice(1).map(function(row){
-      var pid=row[pidIdx]||'';
-      var hdcp=parseInt(row[hcpIdx])||0;
-      var scores={};
-      for(var h=0;h<hCount;h++){
-        var v=row[h1Idx+h];
-        if(v!==undefined&&v!==''){var s=parseInt(v);if(!isNaN(s)&&s>0)scores[h]=s;}
-      }
-      var arr=Object.entries(scores);
-      var tn=arr.reduce(function(acc,e){
-        var h=+e[0],g=e[1],str=strokesOn(hdcp,h);
-        return acc+(g-str);
-      },0);
-      return {
-        id:pid,name:row[nameIdx]||'',flight:row[fltIdx]||'A',
-        hdcp:hdcp,scores:scores,holesPlayed:arr.length,
-        rel:arr.length?tn-cPar:9999
-      };
-    }).filter(function(p){return p.id;});
-    // Update local scores for our group players
-    P.players.forEach(function(p){
-      var lb=P.leaderboard.find(function(l){return l.id===p.id;});
-      if(lb&&lb.scores){
-        Object.entries(lb.scores).forEach(function(e){P.scores[p.id][+e[0]]=e[1];});
-      }
-    });
-    renderLeaderboard();
-  }).catch(function(e){console.error('fetchLeaderboard error:',e);buildLeaderboardFromLocal();});
+  // Firebase is the sole live-scoring transport -- if it's unavailable there's
+  // no fresh session data to pull, so just use whatever is cached locally.
+  buildLeaderboardFromLocal();
 }
 
 // ═══════════════════════════════════════════
@@ -805,7 +667,7 @@ function renderCurrentHole(){
     '</div>';
   });
   if(!P.players.length){
-    rowsHtml = '<div style="color:#8888aa;font-style:italic;font-size:.85rem;padding:16px;text-align:center">Loading players from sheet...<br><br>If this persists, check your connection.</div>';
+    rowsHtml = '<div style="color:#8888aa;font-style:italic;font-size:.85rem;padding:16px;text-align:center">Loading players...<br><br>If this persists, check your connection.</div>';
   }
   document.getElementById('player-score-rows').innerHTML = rowsHtml;
 
@@ -960,8 +822,6 @@ function buildLeaderboardFromLocal(){
 
 function renderLeaderboard(){
   buildLeaderboardFromLocal();
-  // Also fetch fresh from sheet
-  if(P.sheetId && P.tabName) fetchLeaderboard();
   const el = document.getElementById('lb-content');
   P.lastSync = new Date();
   document.getElementById('lb-sync-time').textContent = 'Updated ' + P.lastSync.toLocaleTimeString();
