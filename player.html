@@ -178,7 +178,9 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;b
 .lb-prog-bar{flex:1;height:3px;background:var(--b4);border-radius:2px;overflow:hidden;max-width:80px}
 .lb-prog-fill{height:100%;border-radius:2px;transition:width .3s}
 .lb-holes-left{font-size:.65rem;color:var(--t3);font-family:monospace;white-space:nowrap}
-.lb-score{font-family:monospace;font-size:1rem;font-weight:700;min-width:36px;text-align:right}
+.lb-score-wrap{display:flex;flex-direction:column;align-items:flex-end;min-width:36px}
+.lb-score{font-family:monospace;font-size:1rem;font-weight:700;text-align:right}
+.lb-tot{font-family:monospace;font-size:.62rem;color:var(--t3);margin-top:1px}
 .lb-score.under{color:var(--green)}
 .lb-score.over{color:var(--red)}
 .lb-score.even{color:var(--t1)}
@@ -734,11 +736,10 @@ function renderMiniScorecard(){
     '<th>TOT</th><th>NET</th>';
 
   // Body + scoring breakdown (eagles/birdies/pars/bogeys/double+, thru N)
-  const cPar = P.pars.reduce(function(a,b){return a+(b||4);},0);
   const rows = [];
   const statRows = [];
   P.players.forEach(function(p){
-    let tg=0, tn=0, played=0;
+    let tg=0, tn=0, played=0, cParPlayed=0;
     const counts = {albatross:0, eagle:0, birdie:0, par:0, bogey:0, double:0, triple:0, quad:0, quint:0};
     const cells = Array.from({length:P.numHoles},function(_,h){
       const g = P.scores[p.id] && P.scores[p.id][h]!==undefined ? P.scores[p.id][h] : null;
@@ -746,7 +747,7 @@ function renderMiniScorecard(){
       const par=P.pars[h]||4;
       const str=strokesOn(p.hdcp,h,P.si,P.numHoles);
       const net=g-str;
-      tg+=g; tn+=net; played++;
+      tg+=g; tn+=net; played++; cParPlayed+=par;
       const label=getScoreLabel(g,par);
       if(label && counts[label]!==undefined) counts[label]++;
       const cls=label?'mini-sc-'+label:'';
@@ -759,7 +760,7 @@ function renderMiniScorecard(){
       else if(label==='triple'||label==='quad'||label==='quint') content = '<span class="sc-mark sc-mark-square sc-mark-3" style="color:var(--red)">'+g+'</span>';
       return '<td class="'+cls+'">'+content+'</td>';
     }).join('');
-    const nd=played?tn-cPar:null;
+    const nd=played?tn-cParPlayed:null;
     const ndStr=nd===null?'—':(nd<0?nd:nd>0?'+'+nd:'E');
     const ndColor=nd===null?'#333':nd<0?'#3ecf7e':nd>0?'#f0615a':'#f5f6f8';
     rows.push('<tr><td>'+p.name.split(' ')[0]+'</td>'+cells+
@@ -864,17 +865,22 @@ function buildLeaderboardFromLocal(){
     if(local && P.scores[local.id]){
       lp.scores = P.scores[local.id];
     }
-    // Compute rel
+    // Compute gross total and net-to-par, both scoped to holes actually
+    // played — par for holes not yet played must never count against you.
     const arr = Object.entries(lp.scores||{});
-    if(!arr.length){ lp.holesPlayed=0; lp.rel=9999; return; }
-    const cPar = P.pars.reduce(function(a,b){return a+(b||4);},0);
-    const tn = arr.reduce(function(acc,e){
+    if(!arr.length){ lp.holesPlayed=0; lp.rel=9999; lp.tot=null; return; }
+    let tg=0, tn=0, cParPlayed=0;
+    arr.forEach(function(e){
       const h=+e[0], g=e[1];
-      const str=strokesOn(lp.hdcp,h,P.si,P.numHoles);
-      return acc+(g-str);
-    },0);
+      const par = P.pars[h]||4;
+      const str = strokesOn(lp.hdcp,h,P.si,P.numHoles);
+      tg += g;
+      tn += (g-str);
+      cParPlayed += par;
+    });
     lp.holesPlayed = arr.length;
-    lp.rel = tn - cPar;
+    lp.tot = tg;
+    lp.rel = tn - cParPlayed;
   });
 }
 
@@ -938,7 +944,10 @@ function renderLeaderboard(){
           '</div>' +
           statsHtml +
         '</div>' +
-        '<div class="lb-score '+rCls+'">'+(p.holesPlayed>0?rs:'—')+'</div>' +
+        '<div class="lb-score-wrap">' +
+          '<div class="lb-score '+rCls+'">'+(p.holesPlayed>0?rs:'—')+'</div>' +
+          (p.holesPlayed>0 ? '<div class="lb-tot">'+p.tot+'</div>' : '') +
+        '</div>' +
       '</div>';
     });
     return h;
