@@ -141,6 +141,12 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;b
 .mini-sc-bogey{color:var(--red)}
 .mini-sc-eagle{color:var(--amber);font-weight:700}
 .mini-sc-double{color:#f0615a}
+.sc-mark{display:inline-flex;align-items:center;justify-content:center;width:1.7em;height:1.7em;box-sizing:border-box;font-weight:700}
+.sc-mark-circle{border-radius:50%}
+.sc-mark-square{border-radius:2px}
+.sc-mark-1{border:1.1px solid currentColor}
+.sc-mark-2{border:1.1px solid currentColor;outline:1.1px solid currentColor;outline-offset:2px}
+.sc-mark-3{border:2.2px solid currentColor;outline:2.2px solid currentColor;outline-offset:2px}
 
 /* ── LEADERBOARD ── */
 .lb-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -577,7 +583,7 @@ function applySessionData(data){
 //  STROKE CALC
 // ═══════════════════════════════════════════
 function computeScoringBreakdown(scores){
-  const counts = {eagle:0, birdie:0, par:0, bogey:0, double:0, triple:0};
+  const counts = {albatross:0, eagle:0, birdie:0, par:0, bogey:0, double:0, triple:0, quad:0, quint:0};
   for(let h=0; h<P.numHoles; h++){
     const g = scores && scores[h]!==undefined ? scores[h] : null;
     if(g===null) continue;
@@ -588,15 +594,27 @@ function computeScoringBreakdown(scores){
   return counts;
 }
 
+function extraChipsHtml(counts){
+  let extra = '';
+  if(counts.albatross>0) extra += '<span class="stat-chip stat-chip-eagle">ALB·'+counts.albatross+'</span>';
+  if(counts.triple>0)    extra += '<span class="stat-chip stat-chip-double">+3·'+counts.triple+'</span>';
+  if(counts.quad>0)      extra += '<span class="stat-chip stat-chip-double">+4·'+counts.quad+'</span>';
+  if(counts.quint>0)     extra += '<span class="stat-chip stat-chip-double">+5·'+counts.quint+'</span>';
+  return extra;
+}
+
 function getScoreLabel(gross, par){
   if(gross===undefined||gross===null) return '';
   const d = gross - par;
-  if(d<=-2) return 'eagle';
+  if(d<=-3) return 'albatross';
+  if(d===-2) return 'eagle';
   if(d===-1) return 'birdie';
   if(d===0)  return 'par';
   if(d===1)  return 'bogey';
   if(d===2)  return 'double';
-  return 'triple';
+  if(d===3)  return 'triple';
+  if(d===4)  return 'quad';
+  return 'quint'; // 5-over or worse
 }
 
 // ═══════════════════════════════════════════
@@ -721,7 +739,7 @@ function renderMiniScorecard(){
   const statRows = [];
   P.players.forEach(function(p){
     let tg=0, tn=0, played=0;
-    const counts = {eagle:0, birdie:0, par:0, bogey:0, double:0, triple:0};
+    const counts = {albatross:0, eagle:0, birdie:0, par:0, bogey:0, double:0, triple:0, quad:0, quint:0};
     const cells = Array.from({length:P.numHoles},function(_,h){
       const g = P.scores[p.id] && P.scores[p.id][h]!==undefined ? P.scores[p.id][h] : null;
       if(g===null) return '<td style="color:#333">·</td>';
@@ -732,7 +750,14 @@ function renderMiniScorecard(){
       const label=getScoreLabel(g,par);
       if(label && counts[label]!==undefined) counts[label]++;
       const cls=label?'mini-sc-'+label:'';
-      return '<td class="'+cls+'">'+g+'</td>';
+      let content = g;
+      if(label==='birdie') content = '<span class="sc-mark sc-mark-circle sc-mark-1" style="color:var(--green)">'+g+'</span>';
+      else if(label==='eagle') content = '<span class="sc-mark sc-mark-circle sc-mark-2" style="color:var(--amber)">'+g+'</span>';
+      else if(label==='albatross') content = '<span class="sc-mark sc-mark-circle sc-mark-3" style="color:var(--amber)">'+g+'</span>';
+      else if(label==='bogey') content = '<span class="sc-mark sc-mark-square sc-mark-1" style="color:var(--red)">'+g+'</span>';
+      else if(label==='double') content = '<span class="sc-mark sc-mark-square sc-mark-2" style="color:var(--red)">'+g+'</span>';
+      else if(label==='triple'||label==='quad'||label==='quint') content = '<span class="sc-mark sc-mark-square sc-mark-3" style="color:var(--red)">'+g+'</span>';
+      return '<td class="'+cls+'">'+content+'</td>';
     }).join('');
     const nd=played?tn-cPar:null;
     const ndStr=nd===null?'—':(nd<0?nd:nd>0?'+'+nd:'E');
@@ -741,7 +766,6 @@ function renderMiniScorecard(){
       '<td style="font-family:monospace;font-weight:700">'+(played?tg:'—')+'</td>'+
       '<td style="font-family:monospace;font-weight:700;color:'+ndColor+'">'+ndStr+'</td>'+
       '</tr>');
-    const bigMiss = counts.double + counts.triple;
     const thru = played ? 'Thru '+played : 'Not started';
     statRows.push(
       '<div class="mini-stats-row">' +
@@ -750,7 +774,8 @@ function renderMiniScorecard(){
         '<span class="stat-chip stat-chip-birdie">🐦'+counts.birdie+'</span>' +
         '<span class="stat-chip stat-chip-par">⛳'+counts.par+'</span>' +
         '<span class="stat-chip stat-chip-bogey">+1·'+counts.bogey+'</span>' +
-        '<span class="stat-chip stat-chip-double">+2·'+bigMiss+'</span>' +
+        '<span class="stat-chip stat-chip-double">+2·'+counts.double+'</span>' +
+        extraChipsHtml(counts) +
         '<span class="mini-stats-thru">'+thru+'</span>' +
       '</div>'
     );
@@ -893,14 +918,14 @@ function renderLeaderboard(){
       const rankCls = i===0?'r1':i===1?'r2':i===2?'r3':'';
       const statusText = holesLeft===0 ? 'Finished' : p.holesPlayed===0 ? 'Not started' : 'Thru '+p.holesPlayed;
       const bd = p.holesPlayed>0 ? computeScoringBreakdown(p.scores) : null;
-      const bigMiss = bd ? bd.double+bd.triple : 0;
       const statsHtml = bd ? (
         '<div class="lb-stats">' +
           '<span class="stat-chip stat-chip-eagle">🦅'+bd.eagle+'</span>' +
           '<span class="stat-chip stat-chip-birdie">🐦'+bd.birdie+'</span>' +
           '<span class="stat-chip stat-chip-par">⛳'+bd.par+'</span>' +
           '<span class="stat-chip stat-chip-bogey">+1·'+bd.bogey+'</span>' +
-          '<span class="stat-chip stat-chip-double">+2·'+bigMiss+'</span>' +
+          '<span class="stat-chip stat-chip-double">+2·'+bd.double+'</span>' +
+          extraChipsHtml(bd) +
         '</div>'
       ) : '';
       h += '<div class="lb-row'+(isMe?' you-row':'')+'">' +
