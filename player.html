@@ -125,6 +125,16 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;b
 .mini-table td{padding:4px 6px;text-align:center;border-bottom:1px solid var(--e1);color:var(--t1)}
 .mini-table td:first-child{text-align:left;padding-left:10px;color:var(--t2);font-family:monospace}
 .mini-table tr:last-child td{border-bottom:none}
+.mini-stats{padding:8px 10px;display:flex;flex-direction:column;gap:7px;border-bottom:1px solid var(--e1)}
+.mini-stats-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.mini-stats-name{font-size:.72rem;font-weight:700;color:var(--t1);min-width:58px}
+.stat-chip{display:inline-flex;align-items:center;gap:2px;padding:2px 6px;border-radius:20px;font-family:monospace;font-weight:700;font-size:.65rem;white-space:nowrap}
+.stat-chip-eagle{background:var(--amber-bg);color:var(--amber)}
+.stat-chip-birdie{background:var(--green-bg);color:var(--green)}
+.stat-chip-par{background:var(--b3);color:var(--t2)}
+.stat-chip-bogey{background:var(--red-bg);color:var(--red)}
+.stat-chip-double{background:var(--red-bg);color:var(--red);opacity:.75}
+.mini-stats-thru{margin-left:auto;font-size:.65rem;color:var(--t3);font-family:monospace}
 .mini-sc-birdie{color:var(--green);font-weight:700}
 .mini-sc-bogey{color:var(--red)}
 .mini-sc-eagle{color:var(--amber);font-weight:700}
@@ -228,6 +238,7 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield}
     </div>
     <div class="mini-card">
       <div class="mini-card-title">Your round so far</div>
+      <div id="mini-stats" class="mini-stats"></div>
       <div style="overflow-x:auto">
         <table class="mini-table" id="mini-scorecard">
           <thead><tr id="mini-head"></tr></thead>
@@ -683,16 +694,20 @@ function renderCurrentHole(){
 function renderMiniScorecard(){
   const headEl = document.getElementById('mini-head');
   const bodyEl = document.getElementById('mini-body');
+  const statsEl = document.getElementById('mini-stats');
 
   // Header
   headEl.innerHTML = '<th>Player</th>' +
     Array.from({length:P.numHoles},function(_,i){return '<th>'+(i+1)+'</th>';}).join('') +
     '<th>TOT</th><th>NET</th>';
 
-  // Body
+  // Body + scoring breakdown (eagles/birdies/pars/bogeys/double+, thru N)
   const cPar = P.pars.reduce(function(a,b){return a+(b||4);},0);
-  bodyEl.innerHTML = P.players.map(function(p){
+  const rows = [];
+  const statRows = [];
+  P.players.forEach(function(p){
     let tg=0, tn=0, played=0;
+    const counts = {eagle:0, birdie:0, par:0, bogey:0, double:0, triple:0};
     const cells = Array.from({length:P.numHoles},function(_,h){
       const g = P.scores[p.id] && P.scores[p.id][h]!==undefined ? P.scores[p.id][h] : null;
       if(g===null) return '<td style="color:#333">·</td>';
@@ -701,17 +716,33 @@ function renderMiniScorecard(){
       const net=g-str;
       tg+=g; tn+=net; played++;
       const label=getScoreLabel(g,par);
+      if(label && counts[label]!==undefined) counts[label]++;
       const cls=label?'mini-sc-'+label:'';
       return '<td class="'+cls+'">'+g+'</td>';
     }).join('');
     const nd=played?tn-cPar:null;
     const ndStr=nd===null?'—':(nd<0?nd:nd>0?'+'+nd:'E');
     const ndColor=nd===null?'#333':nd<0?'#3ecf7e':nd>0?'#f0615a':'#f5f6f8';
-    return '<tr><td>'+p.name.split(' ')[0]+'</td>'+cells+
+    rows.push('<tr><td>'+p.name.split(' ')[0]+'</td>'+cells+
       '<td style="font-family:monospace;font-weight:700">'+(played?tg:'—')+'</td>'+
       '<td style="font-family:monospace;font-weight:700;color:'+ndColor+'">'+ndStr+'</td>'+
-      '</tr>';
-  }).join('');
+      '</tr>');
+    const bigMiss = counts.double + counts.triple;
+    const thru = played ? 'Thru '+played : 'Not started';
+    statRows.push(
+      '<div class="mini-stats-row">' +
+        '<span class="mini-stats-name">'+p.name.split(' ')[0]+'</span>' +
+        '<span class="stat-chip stat-chip-eagle">🦅'+counts.eagle+'</span>' +
+        '<span class="stat-chip stat-chip-birdie">🐦'+counts.birdie+'</span>' +
+        '<span class="stat-chip stat-chip-par">⛳'+counts.par+'</span>' +
+        '<span class="stat-chip stat-chip-bogey">+1·'+counts.bogey+'</span>' +
+        '<span class="stat-chip stat-chip-double">+2·'+bigMiss+'</span>' +
+        '<span class="mini-stats-thru">'+thru+'</span>' +
+      '</div>'
+    );
+  });
+  bodyEl.innerHTML = rows.join('');
+  if(statsEl) statsEl.innerHTML = statRows.join('');
 }
 
 // ═══════════════════════════════════════════
@@ -846,7 +877,7 @@ function renderLeaderboard(){
       const pct = Math.round((p.holesPlayed/P.numHoles)*100);
       const progColor = holesLeft===0?'#3ecf7e':p.holesPlayed>0?'#e8ab3f':'#363b44';
       const rankCls = i===0?'r1':i===1?'r2':i===2?'r3':'';
-      const statusText = holesLeft===0 ? 'Finished' : p.holesPlayed===0 ? 'Not started' : holesLeft+' to go';
+      const statusText = holesLeft===0 ? 'Finished' : p.holesPlayed===0 ? 'Not started' : 'Thru '+p.holesPlayed;
       h += '<div class="lb-row'+(isMe?' you-row':'')+'">' +
         '<div class="lb-rank '+rankCls+'">'+(i+1)+'</div>' +
         '<div class="lb-info">' +
