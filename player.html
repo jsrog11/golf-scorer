@@ -6,13 +6,13 @@
 <title>Flight & Skins — Score Entry</title>
 <style>
 :root{
-  --b0:#0a0a0f;--b1:#12121a;--b2:#16161f;--b3:#1e1e2a;--b4:#252535;
-  --e1:#252540;--e2:#2e2e52;--e3:#3a3a6a;
-  --t1:#efefef;--t2:#8888aa;--t3:#44445a;
-  --green:#4caf50;--green-bg:rgba(76,175,80,.13);--green-b:rgba(76,175,80,.35);
-  --amber:#f5a623;--amber-bg:rgba(245,166,35,.12);--amber-b:rgba(245,166,35,.35);
-  --red:#ef5350;--red-bg:rgba(239,83,80,.13);--red-b:rgba(239,83,80,.35);
-  --blue:#42a5f5;--teal:#26c6da;
+  --b0:#0b0c0f;--b1:#121317;--b2:#15171b;--b3:#1d2025;--b4:#262a30;
+  --e1:#1f2228;--e2:#2a2e35;--e3:#363b44;
+  --t1:#f5f6f8;--t2:#989fac;--t3:#5a5f6b;
+  --green:#3ecf7e;--green-bg:rgba(62,207,126,.13);--green-b:rgba(62,207,126,.35);
+  --amber:#e8ab3f;--amber-bg:rgba(232,171,63,.12);--amber-b:rgba(232,171,63,.35);
+  --red:#f0615a;--red-bg:rgba(240,97,90,.13);--red-b:rgba(240,97,90,.35);
+  --blue:#42a5f5;--teal:#39c4d6;
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;background:var(--b0);color:var(--t1);font-size:15px}
@@ -41,7 +41,7 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;b
   cursor:pointer;transition:color .15s;font-family:inherit;
   display:flex;flex-direction:column;align-items:center;gap:3px;
 }
-.tab-btn.active{color:var(--green)}
+.tab-btn.active{color:var(--amber)}
 .tab-icon{font-size:1.1rem;line-height:1}
 
 /* SCREENS */
@@ -56,12 +56,12 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;b
   cursor:pointer;display:flex;align-items:center;justify-content:center;
   transition:all .12s;font-family:monospace;
 }
-.hole-btn.current{background:var(--b4);border-color:var(--e3);color:var(--t1);box-shadow:0 0 0 2px rgba(58,58,106,.5)}
+.hole-btn.current{background:var(--b4);border-color:var(--e3);color:var(--t1);box-shadow:0 0 0 2px rgba(232,171,63,.45)}
 .hole-btn.birdie{background:var(--green-bg);border-color:var(--green-b);color:var(--green)}
 .hole-btn.par{background:var(--b3);border-color:var(--e2);color:var(--t2)}
 .hole-btn.bogey{background:var(--red-bg);border-color:var(--red-b);color:var(--red)}
 .hole-btn.eagle{background:var(--amber-bg);border-color:var(--amber-b);color:var(--amber)}
-.hole-btn.double{background:rgba(239,83,80,.25);border-color:#c62828;color:#ffcdd2}
+.hole-btn.double{background:rgba(240,97,90,.25);border-color:#c62828;color:#ffcdd2}
 
 .hole-card{background:var(--b2);border:1px solid var(--e2);border-radius:10px;padding:14px;margin-bottom:12px}
 .hole-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -98,18 +98,18 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;b
 .score-label.birdie{color:var(--green)}
 .score-label.par{color:var(--t3)}
 .score-label.bogey{color:var(--red)}
-.score-label.double{color:#ef5350}
+.score-label.double{color:#f0615a}
 .score-label.triple{color:#c62828}
 
 /* Score cell highlight */
 .psr-birdie .score-num{color:var(--green)}
 .psr-bogey .score-num{color:var(--red)}
 .psr-eagle .score-num{color:var(--amber)}
-.psr-double .score-num{color:#ef5350}
+.psr-double .score-num{color:#f0615a}
 
 .save-hole-btn{
   width:100%;padding:13px;border-radius:8px;border:none;
-  background:var(--green);color:#fff;font-size:.95rem;font-weight:700;
+  background:var(--amber);color:#1c1206;font-size:.95rem;font-weight:700;
   cursor:pointer;margin-top:10px;transition:filter .15s;
   font-family:inherit;
 }
@@ -128,7 +128,7 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;b
 .mini-sc-birdie{color:var(--green);font-weight:700}
 .mini-sc-bogey{color:var(--red)}
 .mini-sc-eagle{color:var(--amber);font-weight:700}
-.mini-sc-double{color:#ef5350}
+.mini-sc-double{color:#f0615a}
 
 /* ── LEADERBOARD ── */
 .lb-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -623,7 +623,7 @@ function renderCurrentHole(){
   let rowsHtml = '';
   if(!P.players || P.players.length===0){
     document.getElementById('player-score-rows').innerHTML =
-      '<div style="color:#8888aa;font-style:italic;font-size:.85rem;padding:16px;text-align:center">'+
+      '<div style="color:#989fac;font-style:italic;font-size:.85rem;padding:16px;text-align:center">'+
       'Waiting for player data...<br><span style="font-size:.75rem">Pull down to refresh or check your connection</span></div>';
     // Try to reload
     setTimeout(fetchSessionData, 3000);
@@ -641,7 +641,7 @@ function renderCurrentHole(){
       '<div class="psr-top">' +
         '<div>' +
           '<div class="psr-name">'+p.name+'</div>' +
-          '<div class="psr-meta">HCP '+p.hdcp+' · '+flight+(strokes>0?' · <span style="color:#f5a623">'+strokes+' stroke'+(strokes>1?'s':'')+'</span>':'')+'</div>' +
+          '<div class="psr-meta">HCP '+p.hdcp+' · '+flight+(strokes>0?' · <span style="color:#e8ab3f">'+strokes+' stroke'+(strokes>1?'s':'')+'</span>':'')+'</div>' +
         '</div>' +
       '</div>' +
       '<div class="psr-controls">' +
@@ -655,7 +655,7 @@ function renderCurrentHole(){
     '</div>';
   });
   if(!P.players.length){
-    rowsHtml = '<div style="color:#8888aa;font-style:italic;font-size:.85rem;padding:16px;text-align:center">Loading players...<br><br>If this persists, check your connection.</div>';
+    rowsHtml = '<div style="color:#989fac;font-style:italic;font-size:.85rem;padding:16px;text-align:center">Loading players...<br><br>If this persists, check your connection.</div>';
   }
   document.getElementById('player-score-rows').innerHTML = rowsHtml;
 
@@ -706,7 +706,7 @@ function renderMiniScorecard(){
     }).join('');
     const nd=played?tn-cPar:null;
     const ndStr=nd===null?'—':(nd<0?nd:nd>0?'+'+nd:'E');
-    const ndColor=nd===null?'#333':nd<0?'#4caf50':nd>0?'#ef5350':'#efefef';
+    const ndColor=nd===null?'#333':nd<0?'#3ecf7e':nd>0?'#f0615a':'#f5f6f8';
     return '<tr><td>'+p.name.split(' ')[0]+'</td>'+cells+
       '<td style="font-family:monospace;font-weight:700">'+(played?tg:'—')+'</td>'+
       '<td style="font-family:monospace;font-weight:700;color:'+ndColor+'">'+ndStr+'</td>'+
@@ -826,7 +826,7 @@ function renderLeaderboard(){
   let html = '';
 
   function renderFlight(players, flightName){
-    if(!players.length) return '<div style="color:#44445a;font-style:italic;font-size:.82rem;padding:8px 0">No scores entered yet</div>';
+    if(!players.length) return '<div style="color:#5a5f6b;font-style:italic;font-size:.82rem;padding:8px 0">No scores entered yet</div>';
     let h = '';
     if(players[0].holesPlayed>0){
       const leader = players[0];
@@ -844,7 +844,7 @@ function renderLeaderboard(){
       const rCls = p.rel<0?'under':p.rel>0?'over':'even';
       const holesLeft = P.numHoles - p.holesPlayed;
       const pct = Math.round((p.holesPlayed/P.numHoles)*100);
-      const progColor = holesLeft===0?'#4caf50':p.holesPlayed>0?'#f5a623':'#3a3a6a';
+      const progColor = holesLeft===0?'#3ecf7e':p.holesPlayed>0?'#e8ab3f':'#363b44';
       const rankCls = i===0?'r1':i===1?'r2':i===2?'r3':'';
       const statusText = holesLeft===0 ? 'Finished' : p.holesPlayed===0 ? 'Not started' : holesLeft+' to go';
       h += '<div class="lb-row'+(isMe?' you-row':'')+'">' +
@@ -902,7 +902,7 @@ function showCompleteScreen(){
 
 function showError(msg){
   document.getElementById('loading-screen').innerHTML =
-    '<div style="text-align:center;padding:40px;color:#ef5350;font-size:.9rem;line-height:1.6">⚠<br><br>'+msg+'</div>';
+    '<div style="text-align:center;padding:40px;color:#f0615a;font-size:.9rem;line-height:1.6">⚠<br><br>'+msg+'</div>';
 }
 
 function setLoading(msg){
