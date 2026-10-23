@@ -135,6 +135,8 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;b
 .stat-chip-bogey{background:var(--red-bg);color:var(--red)}
 .stat-chip-double{background:var(--red-bg);color:var(--red);opacity:.75}
 .mini-stats-thru{margin-left:auto;font-size:.65rem;color:var(--t3);font-family:monospace}
+.lb-stats{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.lb-stats .stat-chip{font-size:.58rem;padding:1px 5px}
 .mini-sc-birdie{color:var(--green);font-weight:700}
 .mini-sc-bogey{color:var(--red)}
 .mini-sc-eagle{color:var(--amber);font-weight:700}
@@ -574,6 +576,18 @@ function applySessionData(data){
 // ═══════════════════════════════════════════
 //  STROKE CALC
 // ═══════════════════════════════════════════
+function computeScoringBreakdown(scores){
+  const counts = {eagle:0, birdie:0, par:0, bogey:0, double:0, triple:0};
+  for(let h=0; h<P.numHoles; h++){
+    const g = scores && scores[h]!==undefined ? scores[h] : null;
+    if(g===null) continue;
+    const par = P.pars[h]||4;
+    const label = getScoreLabel(g, par);
+    if(label && counts[label]!==undefined) counts[label]++;
+  }
+  return counts;
+}
+
 function getScoreLabel(gross, par){
   if(gross===undefined||gross===null) return '';
   const d = gross - par;
@@ -878,6 +892,17 @@ function renderLeaderboard(){
       const progColor = holesLeft===0?'#3ecf7e':p.holesPlayed>0?'#e8ab3f':'#363b44';
       const rankCls = i===0?'r1':i===1?'r2':i===2?'r3':'';
       const statusText = holesLeft===0 ? 'Finished' : p.holesPlayed===0 ? 'Not started' : 'Thru '+p.holesPlayed;
+      const bd = p.holesPlayed>0 ? computeScoringBreakdown(p.scores) : null;
+      const bigMiss = bd ? bd.double+bd.triple : 0;
+      const statsHtml = bd ? (
+        '<div class="lb-stats">' +
+          '<span class="stat-chip stat-chip-eagle">🦅'+bd.eagle+'</span>' +
+          '<span class="stat-chip stat-chip-birdie">🐦'+bd.birdie+'</span>' +
+          '<span class="stat-chip stat-chip-par">⛳'+bd.par+'</span>' +
+          '<span class="stat-chip stat-chip-bogey">+1·'+bd.bogey+'</span>' +
+          '<span class="stat-chip stat-chip-double">+2·'+bigMiss+'</span>' +
+        '</div>'
+      ) : '';
       h += '<div class="lb-row'+(isMe?' you-row':'')+'">' +
         '<div class="lb-rank '+rankCls+'">'+(i+1)+'</div>' +
         '<div class="lb-info">' +
@@ -886,6 +911,7 @@ function renderLeaderboard(){
             '<div class="lb-prog-bar"><div class="lb-prog-fill" style="width:'+pct+'%;background:'+progColor+'"></div></div>' +
             '<span class="lb-holes-left">'+statusText+'</span>' +
           '</div>' +
+          statsHtml +
         '</div>' +
         '<div class="lb-score '+rCls+'">'+(p.holesPlayed>0?rs:'—')+'</div>' +
       '</div>';
