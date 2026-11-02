@@ -206,6 +206,23 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-track{background:var(--b0)}
 ::-webkit-scrollbar-thumb{background:var(--e3);border-radius:2px}
+/* ── SELF-SERVE JOIN SCREEN ── */
+.join-screen{display:none;flex-direction:column;height:100vh;height:100dvh;overflow-y:auto;padding:24px 16px 16px;background:var(--b0)}
+.join-header{margin-bottom:18px}
+.join-title{font-size:1.1rem;font-weight:700;color:var(--t1);margin-bottom:4px}
+.join-sub{font-size:.8rem;color:var(--t2)}
+.join-group{margin-bottom:18px}
+.join-group-title{font-size:.68rem;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+.join-group-claimed{font-size:.68rem;color:var(--amber);font-weight:600;text-transform:none;letter-spacing:0;margin-left:4px}
+.join-name-row{background:var(--b2);border:1px solid var(--e1);border-radius:8px;padding:13px 14px;margin-bottom:7px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;transition:background .12s}
+.join-name-row:active{background:var(--b3)}
+.join-name-label{font-size:.9rem;font-weight:600;color:var(--t1)}
+.join-name-arrow{color:var(--t3);font-size:.9rem}
+.join-empty{color:var(--t2);font-size:.85rem;text-align:center;padding:30px 10px;line-height:1.6}
+
+/* ── ONE-SCORER-PER-GROUP BANNER ── */
+.scorer-banner{display:none;align-items:center;justify-content:space-between;gap:10px;background:var(--amber-bg);border:1px solid var(--amber-b);border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:.78rem;color:var(--amber);line-height:1.4}
+.scorer-banner-btn{background:var(--amber);color:#1c1206;border:none;border-radius:6px;padding:6px 10px;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;flex-shrink:0}
 </style>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
@@ -218,6 +235,15 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield}
 <div class="loading-screen" id="loading-screen">
   <div class="spinner"></div>
   <div class="loading-text" id="loading-text">Loading your scorecard...</div>
+</div>
+
+<!-- Self-serve join: shown when the link has no group baked in -->
+<div class="join-screen" id="join-screen">
+  <div class="join-header">
+    <div class="join-title" id="join-title">Who are you?</div>
+    <div class="join-sub">Tap your name to join your group.</div>
+  </div>
+  <div id="join-groups"></div>
 </div>
 
 <!-- App (hidden until loaded) -->
@@ -235,6 +261,10 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield}
 
   <!-- Score Entry Screen -->
   <div class="screen active" id="screen-card">
+    <div class="scorer-banner" id="scorer-banner">
+      <span class="scorer-banner-text"></span>
+      <button class="scorer-banner-btn" onclick="takeOverScoring()">Take over</button>
+    </div>
     <div class="hole-nav" id="hole-nav"></div>
     <div class="hole-card">
       <div class="hole-card-header">
@@ -313,6 +343,9 @@ const P = {
   lastSync: null,
   syncQueue: [],
   fbDb: null,
+  myName: null,      // name this phone tapped on the join screen (if any)
+  claim: null,        // current scorer claim for this group, from Firebase
+  isScorer: true,     // whether THIS device is allowed to enter scores
 };
 
 const FB_CONFIG = {
@@ -361,11 +394,30 @@ function init(){
   if(parsParam) try{ P.pars = JSON.parse(decodeURIComponent(parsParam)); }catch(e){}
   if(siParam)   try{ P.si   = JSON.parse(decodeURIComponent(siParam));   }catch(e){}
 
+  // No group baked into the link: this is the shared, session-wide
+  // QR/code (or a bare bookmark). Try this browser's own memory of which
+  // group it last joined for this session before asking the person to
+  // pick their name.
+  if(!P.groupNum && P.sessionId){
+    try {
+      var remembered = localStorage.getItem('player_last_group_' + P.sessionId);
+      if(remembered) P.groupNum = remembered;
+    } catch(e){}
+  }
+
   if(!P.groupNum){
-    showError('No group specified. Please scan your group QR code again.');
+    if(P.sessionId){
+      showJoinScreen();
+    } else {
+      showError('No session found. Please scan your group\'s QR code, or ask the organizer for the join link.');
+    }
     return;
   }
 
+  startGroupSession();
+}
+
+function startGroupSession(){
   setLoading('Loading group ' + P.groupNum + ' scorecard...');
 
   // Try to load from localStorage (offline cache)
@@ -373,6 +425,168 @@ function init(){
 
   // Then connect to the live Firebase session
   fetchSessionData();
+}
+
+// ═══════════════════════════════════════════
+//  SELF-SERVE JOIN — pick your name, not a
+//  group number, so everyone's own name tells
+//  them which door to walk through. Just
+//  landing here never claims anything; only
+//  entering an actual score does (see
+//  claimGroupIfUnclaimed below).
+// ═══════════════════════════════════════════
+function getDeviceId(){
+  try {
+    var id = localStorage.getItem('player_device_id');
+    if(!id){
+      id = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,10);
+      localStorage.setItem('player_device_id', id);
+    }
+    return id;
+  } catch(e){ return 'dev_nostorage_' + Math.random().toString(36).slice(2,10); }
+}
+
+function escHtml(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showJoinScreen(){
+  if(!initFirebase()){
+    showError('Could not connect. Check your connection and reload.');
+    return;
+  }
+  document.getElementById('loading-screen').style.display='none';
+  document.getElementById('join-screen').style.display='flex';
+  P.fbDb.ref('sessions/' + P.fbSession).once('value').then(function(snap){
+    var data = snap.val();
+    if(!data || !data.players || !Object.keys(data.players).length){
+      document.getElementById('join-groups').innerHTML =
+        '<div class="join-empty">No players found yet for this round.<br>Ask the organizer to confirm the round is live, then reload.</div>';
+      return;
+    }
+    renderJoinScreen(data);
+  }).catch(function(e){
+    console.error('Join screen load error:', e);
+    document.getElementById('join-groups').innerHTML =
+      '<div class="join-empty">Could not load the player list.<br>Check your connection and try again.</div>';
+  });
+}
+
+function renderJoinScreen(data){
+  var meta = data.meta || {};
+  document.getElementById('join-title').textContent = meta.tournament ? meta.tournament : 'Who are you?';
+  var playersObj = data.players || {};
+  var claims = data.claims || {};
+  var byGroup = {};
+  Object.keys(playersObj).forEach(function(pid){
+    var p = playersObj[pid];
+    var g = parseInt(p.group)||1;
+    if(!byGroup[g]) byGroup[g] = [];
+    byGroup[g].push({id:pid, name:p.name});
+  });
+  var groupNums = Object.keys(byGroup).map(Number).sort(function(a,b){return a-b;});
+  var html = '';
+  groupNums.forEach(function(g){
+    var claim = claims[g];
+    html += '<div class="join-group">' +
+      '<div class="join-group-title">Group ' + g +
+      (claim ? '<span class="join-group-claimed">· already being scored by ' + escHtml(claim.name||'a player') + '</span>' : '') +
+      '</div>';
+    byGroup[g].forEach(function(p){
+      html += '<div class="join-name-row" onclick="selectJoinName(\''+p.id+'\','+g+')">' +
+        '<span class="join-name-label">' + escHtml(p.name) + '</span>' +
+        '<span class="join-name-arrow">\u2192</span>' +
+      '</div>';
+    });
+    html += '</div>';
+  });
+  document.getElementById('join-groups').innerHTML = html;
+}
+
+function selectJoinName(pid, groupNum){
+  P.fbDb.ref('sessions/' + P.fbSession + '/players').once('value').then(function(snap){
+    var playersObj = snap.val() || {};
+    var names = Object.keys(playersObj)
+      .filter(function(id){ return parseInt(playersObj[id].group)===groupNum; })
+      .map(function(id){ return playersObj[id].name; })
+      .join(', ');
+    var ok = confirm('Join Group ' + groupNum + ' \u2014 ' + names + '?');
+    if(!ok) return;
+    P.myName = (playersObj[pid] && playersObj[pid].name) || null;
+    P.groupNum = String(groupNum);
+    try { localStorage.setItem('player_last_group_' + P.sessionId, P.groupNum); } catch(e){}
+    document.getElementById('join-screen').style.display='none';
+    document.getElementById('loading-screen').style.display='flex';
+    startGroupSession();
+  }).catch(function(e){
+    console.error('selectJoinName error:', e);
+    alert('Could not join right now — check your connection and try again.');
+  });
+}
+
+// ═══════════════════════════════════════════
+//  ONE SCORER PER GROUP — the claim lives at
+//  sessions/<id>/claims/<groupNum> = {name,
+//  deviceId, claimedAt}. It is written the
+//  moment a score is actually saved (never
+//  just by opening the page or picking a
+//  name), via a transaction so two phones
+//  racing to score the same unclaimed group
+//  can't both "win". Any device can see the
+//  claim and take over with confirmation.
+// ═══════════════════════════════════════════
+function claimGroupIfUnclaimed(){
+  if(!P.fbDb || !P.fbSession || !P.groupNum) return;
+  var claimRef = P.fbDb.ref('sessions/' + P.fbSession + '/claims/' + P.groupNum);
+  var myId = getDeviceId();
+  claimRef.transaction(function(current){
+    if(current) return; // someone already holds this group — leave it alone
+    return { name: P.myName || null, deviceId: myId, claimedAt: Date.now() };
+  });
+}
+
+function checkClaimAndListen(){
+  if(!P.fbDb || !P.fbSession || !P.groupNum) return;
+  var claimRef = P.fbDb.ref('sessions/' + P.fbSession + '/claims/' + P.groupNum);
+  claimRef.on('value', function(snap){
+    var claim = snap.val();
+    P.claim = claim || null;
+    var myId = getDeviceId();
+    P.isScorer = !claim || claim.deviceId === myId;
+    applyScorerMode();
+  });
+}
+
+function applyScorerMode(){
+  var banner = document.getElementById('scorer-banner');
+  var saveBtn = document.getElementById('save-hole-btn');
+  if(!P.isScorer){
+    if(banner){
+      banner.style.display='flex';
+      var txt = banner.querySelector('.scorer-banner-text');
+      if(txt) txt.textContent = (P.claim && P.claim.name ? P.claim.name : 'Someone else') + ' is scoring this group \u2014 view only.';
+    }
+    if(saveBtn) saveBtn.style.display='none';
+    document.querySelectorAll('.score-minus,.score-plus').forEach(function(b){ b.disabled=true; b.style.opacity='.35'; });
+  } else {
+    if(banner) banner.style.display='none';
+    if(saveBtn) saveBtn.style.display='';
+    document.querySelectorAll('.score-minus,.score-plus').forEach(function(b){ b.disabled=false; b.style.opacity=''; });
+  }
+}
+
+function takeOverScoring(){
+  var prevName = (P.claim && P.claim.name) ? P.claim.name : 'the current scorer';
+  var ok = confirm(
+    'Take over scoring for Group ' + P.groupNum + ' from ' + prevName + '?\n\n' +
+    'Only do this if they can\'t keep scoring (phone died, had to leave, etc.) \u2014 not just because you also want a turn.'
+  );
+  if(!ok) return;
+  P.fbDb.ref('sessions/' + P.fbSession + '/claims/' + P.groupNum).set({
+    name: P.myName || null,
+    deviceId: getDeviceId(),
+    claimedAt: Date.now()
+  });
 }
 
 function loadFromCache(){
@@ -464,6 +678,7 @@ function loadFromFirebase(){
     showApp();
     listenForScoreUpdates();
     listenForSessionEnd();
+    checkClaimAndListen();
   })
   .catch(function(e){
     console.error('Firebase load error:', e);
@@ -725,6 +940,7 @@ function renderCurrentHole(){
     btn.className='save-hole-btn';
     btn.textContent = h<P.numHoles-1 ? 'Save Hole '+(h+1)+' & Next →' : 'Save Final Hole';
   }
+  applyScorerMode();
 }
 
 function renderMiniScorecard(){
@@ -791,6 +1007,7 @@ function renderMiniScorecard(){
 //  SCORE ADJUSTMENT
 // ═══════════════════════════════════════════
 function adjustScore(pid, hole, delta){
+  if(P.isScorer === false) return; // view-only — someone else already claimed this group
   const par = P.pars[hole]||4;
   const current = (P.scores[pid] && P.scores[pid][hole]!==undefined) ? P.scores[pid][hole] : par;
   const next = Math.max(1, Math.min(15, current + delta));
@@ -825,6 +1042,8 @@ function adjustScore(pid, hole, delta){
 }
 
 function saveHole(){
+  if(P.isScorer === false) return; // view-only — someone else already claimed this group
+  claimGroupIfUnclaimed();
   const h = P.currentHole;
   const par = P.pars[h]||4;
 
