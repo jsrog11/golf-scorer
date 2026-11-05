@@ -93,6 +93,7 @@ html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;b
   font-family:monospace;font-weight:700;
 }
 .score-num{font-size:1.6rem;line-height:1;color:var(--t1)}
+.score-num.is-default{opacity:.4}
 .score-label{font-size:.58rem;font-weight:600;letter-spacing:.3px;margin-top:2px}
 .score-label.eagle{color:var(--amber)}
 .score-label.birdie{color:var(--green)}
@@ -893,10 +894,15 @@ function renderCurrentHole(){
   }
   P.players.forEach(function(p){
     const strokes = strokesOn(p.hdcp, h, P.si, P.numHoles);
-    const gross = P.scores[p.id] && P.scores[p.id][h]!==undefined ? P.scores[p.id][h] : null;
-    const label = gross!==null ? getScoreLabel(gross, par) : '';
-    const netScore = gross!==null ? gross - strokes : null;
-    const netLabel = netScore!==null ? getScoreLabel(netScore, par) : '';
+    const hasScore = P.scores[p.id] && P.scores[p.id][h]!==undefined;
+    // Default the displayed (not-yet-saved) score to this hole's par —
+    // matches what adjustScore() already starts from and what saveHole()
+    // already fills in behind the scenes, so the screen now shows the
+    // same number the app would actually save if left untouched.
+    const gross = hasScore ? P.scores[p.id][h] : par;
+    const label = getScoreLabel(gross, par);
+    const netScore = gross - strokes;
+    const netLabel = getScoreLabel(netScore, par);
     const flight = p.flight==='A' ? P.fAN : P.fBN;
 
     rowsHtml += '<div class="player-score-row psr-'+label+'" id="psr-'+p.id+'">' +
@@ -909,8 +915,8 @@ function renderCurrentHole(){
       '<div class="psr-controls">' +
         '<button class="score-minus" onclick="adjustScore(\''+p.id+'\','+h+',-1)">−</button>' +
         '<div class="score-display">' +
-          '<div class="score-num" id="sn-'+p.id+'">'+(gross!==null?gross:'—')+'</div>' +
-          '<div class="score-label '+label+'" id="sl-'+p.id+'">'+(label?label.toUpperCase():'')+'</div>' +
+          '<div class="score-num'+(hasScore?'':' is-default')+'" id="sn-'+p.id+'">'+gross+'</div>' +
+          '<div class="score-label '+label+'" id="sl-'+p.id+'">'+label.toUpperCase()+'</div>' +
         '</div>' +
         '<button class="score-plus" onclick="adjustScore(\''+p.id+'\','+h+',1)">+</button>' +
       '</div>' +
@@ -1019,7 +1025,7 @@ function adjustScore(pid, hole, delta){
   const snEl = document.getElementById('sn-'+pid);
   const slEl = document.getElementById('sl-'+pid);
   const rowEl = document.getElementById('psr-'+pid);
-  if(snEl) snEl.textContent = next;
+  if(snEl){ snEl.textContent = next; snEl.classList.remove('is-default'); }
   if(slEl){ slEl.textContent = label?label.toUpperCase():''; slEl.className='score-label '+label; }
   if(rowEl){ rowEl.className='player-score-row psr-'+label; }
 
